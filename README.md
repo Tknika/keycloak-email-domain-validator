@@ -357,10 +357,6 @@ docker compose run --rm maven verify
 
 Apache License 2.0
 
-## Author
-
-Cédric Couralet
-
 ## References
 
 - [Keycloak User Profile Documentation](https://www.keycloak.org/docs/latest/server_admin/#user-profile)
