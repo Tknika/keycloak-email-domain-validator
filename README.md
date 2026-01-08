@@ -1,5 +1,8 @@
 # Keycloak Email Domain Whitelist Validator
 
+[![CI](https://github.com/micedre/keycloak-email-domain-validator/actions/workflows/ci.yml/badge.svg)](https://github.com/micedre/keycloak-email-domain-validator/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 A custom Keycloak UserProfile Validator that restricts email addresses to a configurable list of allowed domains. This validator applies to **ALL** email update contexts in Keycloak, including registration, UPDATE_EMAIL required action, profile updates, account console, and admin API operations.
 
 ## Features
@@ -285,6 +288,27 @@ If you're currently using the FormAction-based validator:
 5. Optionally remove the old JAR
 
 The glob pattern syntax is fully compatible with the existing implementation.
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Continuous Integration
+
+This project uses GitHub Actions for CI/CD:
+
+- **CI Workflow**: Runs on every push and pull request
+  - Builds Docker image
+  - Runs all tests
+  - Creates JAR artifact
+  - Generates test reports
+
+- **Release Workflow**: Runs on version tags (e.g., `v1.0.0`)
+  - Runs full test suite
+  - Builds release JAR
+  - Creates GitHub release with artifacts
+
+All workflows use Docker to ensure consistency with local development.
 
 ## Development
 

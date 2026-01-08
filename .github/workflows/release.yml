@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: docker compose build
+      
+    - name: Run tests
+      run: docker compose run --rm maven mvn clean test
+      
+    - name: Build release package
+      run: docker compose run --rm maven mvn clean package
+      
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: target/keycloak-email-domain-validator-*.jar
+        body: |
+          ## Keycloak Email Domain Validator ${{ steps.get_version.outputs.VERSION }}
+          
+          ### Installation
+          
+          1. Download the JAR file
+          2. Copy it to `$KEYCLOAK_HOME/providers/`
+          3. Run `$KEYCLOAK_HOME/bin/kc.sh build`
+          4. Restart Keycloak
+          
+          ### Configuration
+          
+          Configure via Admin Console:
+          - Realm Settings → User Profile → email attribute → Validations → Add Validator
+          - Select `email-domain-whitelist`
+          - Configure allowed domains
+          
+          See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed documentation.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

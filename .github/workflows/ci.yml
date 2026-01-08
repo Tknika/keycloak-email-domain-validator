@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      run: docker compose build
+      
+    - name: Run tests
+      run: docker compose run --rm maven mvn clean test
+      
+    - name: Build package
+      run: docker compose run --rm maven mvn package -DskipTests
+      
+    - name: Upload JAR artifact
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: keycloak-email-domain-validator
+        path: target/keycloak-email-domain-validator-*.jar
+        retention-days: 30
+        
+    - name: Generate test report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Test Results
+        path: target/surefire-reports/*.xml
+        reporter: java-junit
+        fail-on-error: true
