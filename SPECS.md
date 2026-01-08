@@ -629,6 +629,13 @@ File: `src/main/resources/theme-resources/messages/messages_fr.properties`
 error-email-domain-not-allowed=Le domaine de messagerie n'est pas autorisé. Veuillez utiliser une adresse e-mail d'un des domaines autorisés: {0}
 ```
 
+File: `src/main/resources/theme-resources/messages/messages_eu.properties`
+
+```properties
+# Posta elektronikoaren domeinuaren balidazio-errore mezuak
+error-email-domain-not-allowed=Posta elektronikoaren domeinua ez dago baimenduta. Mesedez, erabili baimendutako domeinuetako bat duen helbide elektroniko bat: {0}
+```
+
 ### 6. Unit Tests (`EmailDomainValidatorTest.java`)
 
 ```java

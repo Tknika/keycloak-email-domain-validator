@@ -11,7 +11,7 @@ A custom Keycloak UserProfile Validator that restricts email addresses to a conf
 - ✅ Support for multiple allowed domains
 - ✅ Glob pattern matching with `*` (any characters) and `?` (single character) wildcards
 - ✅ Case-insensitive domain matching
-- ✅ Internationalized error messages (English, Spanish, French)
+- ✅ Internationalized error messages (English, Spanish, French, Basque)
 - ✅ Easy configuration through Keycloak's User Profile UI
 - ✅ Permissive mode when no domains are configured
 
@@ -331,7 +331,8 @@ keycloak-email-domain-validator/
 │   │       └── theme-resources/messages/
 │   │           ├── messages_en.properties
 │   │           ├── messages_es.properties
-│   │           └── messages_fr.properties
+│   │           ├── messages_fr.properties
+│   │           └── messages_eu.properties
 │   └── test/
 │       └── java/
 │           └── net/micedre/keycloak/validator/
