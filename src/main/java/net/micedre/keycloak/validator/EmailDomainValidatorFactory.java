@@ -3,6 +3,7 @@ package net.micedre.keycloak.validator;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.provider.ConfiguredProvider;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.validate.Validator;
@@ -21,7 +22,7 @@ import java.util.List;
  * @see EmailDomainValidator
  * @see ValidatorFactory
  */
-public class EmailDomainValidatorFactory implements ValidatorFactory {
+public class EmailDomainValidatorFactory implements ValidatorFactory, ConfiguredProvider {
 
     @Override
     public String getId() {

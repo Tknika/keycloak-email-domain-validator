@@ -62,6 +62,8 @@ docker compose run --rm maven install
 
 ## Installation
 
+> 📋 **Important**: After installation, use the [Deployment Checklist](DEPLOYMENT_CHECKLIST.md) to verify the validator is properly loaded.
+
 ### Keycloak Quarkus Distribution (26.x+)
 
 1. Copy the JAR to the Keycloak providers directory:
