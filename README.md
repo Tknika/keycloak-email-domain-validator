@@ -1,6 +1,6 @@
 # Keycloak Email Domain Whitelist Validator
 
-[![CI](https://github.com/micedre/keycloak-email-domain-validator/actions/workflows/ci.yml/badge.svg)](https://github.com/micedre/keycloak-email-domain-validator/actions/workflows/ci.yml)
+[![CI](https://github.com/Tknika/keycloak-email-domain-validator/actions/workflows/ci.yml/badge.svg)](https://github.com/Tknika/keycloak-email-domain-validator/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 A custom Keycloak UserProfile Validator that restricts email addresses to a configurable list of allowed domains. This validator applies to **ALL** email update contexts in Keycloak, including registration, UPDATE_EMAIL required action, profile updates, account console, and admin API operations.
