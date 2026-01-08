@@ -5,6 +5,9 @@
 
 A custom Keycloak UserProfile Validator that restricts email addresses to a configurable list of allowed domains. This validator applies to **ALL** email update contexts in Keycloak, including registration, UPDATE_EMAIL required action, profile updates, account console, and admin API operations.
 
+![Select validator](public/assets/screenshot_select_validator.png)
+![Configure validator](public/assets/screenshot_configure_validator.png)
+
 This project has been inspired by the [keycloak-mail-whitelisting](https://github.com/micedre/keycloak-mail-whitelisting) project, which works great for the registration flow, but not for the UPDATE_EMAIL flow. This project is a UserProfile validator that applies to all email update contexts so it can be used in all contexts.
 
 ## Features
