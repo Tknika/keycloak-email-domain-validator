@@ -1,0 +1,17 @@
+services:
+  maven:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount source code
+      - .:/app
+      # Mount Maven cache to speed up builds
+      - maven-cache:/root/.m2
+    working_dir: /app
+    # Default command - can be overridden
+    command: ["mvn", "clean", "package"]
+
+volumes:
+  maven-cache:
+    driver: local
