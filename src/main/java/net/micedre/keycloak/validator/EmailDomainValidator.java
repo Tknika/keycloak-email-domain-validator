@@ -1,6 +1,5 @@
 package net.micedre.keycloak.validator;
 
-import org.keycloak.provider.ConfiguredProvider;
 import org.keycloak.validate.AbstractSimpleValidator;
 import org.keycloak.validate.ValidationContext;
 import org.keycloak.validate.ValidationError;
@@ -51,7 +50,11 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
     /**
      * Configuration property name for the list of allowed domains.
      */
-    public static final String CONFIG_ALLOWED_DOMAINS = "allowed-domains";
+    public static final String CONFIG_PRIVATE_WHITELIST = "private-whitelist";
+
+    public static final String CONFIG_PUBLIC_WHITELIST = "public-whitelist";
+
+    public static final String CONFIG_ALLOWED_DOMAINS_LEGACY = "allowed-domains";
 
     /**
      * Configuration property name for custom error message key.
@@ -80,6 +83,16 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
      */
     private static final int MAX_DOMAIN_LENGTH = 200;
 
+    private static final String INVITATION_PATH = "/login-actions/registration";
+
+    private static final String PUBLIC_REGISTRATION_PATH = "/protocol/openid-connect/registrations";
+
+    private enum FlowContext {
+        INVITATION_REGISTRATION,
+        PUBLIC_REGISTRATION,
+        OTHER
+    }
+
     @Override
     public String getId() {
         return ID;
@@ -103,10 +116,27 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
             return;
         }
 
-        Set<String> allowedDomains = parseAllowedDomains(config);
+        FlowContext flowContext = detectFlowContext(context);
+        Set<String> publicWhitelist = parseAllowedDomains(config, CONFIG_PUBLIC_WHITELIST);
+        Set<String> privateWhitelist = parseAllowedDomains(config, CONFIG_PRIVATE_WHITELIST);
 
-        // If no domains configured, skip validation (permissive mode)
+        if (privateWhitelist.isEmpty() && publicWhitelist.isEmpty()) {
+            Set<String> legacyWhitelist = parseAllowedDomains(config, CONFIG_ALLOWED_DOMAINS_LEGACY);
+            privateWhitelist = legacyWhitelist;
+            publicWhitelist = legacyWhitelist;
+        }
+
+        // Select whitelist based on context:
+        // PUBLIC_REGISTRATION (new users): use strict public whitelist
+        // INVITATION_REGISTRATION (invitations): use permissive private whitelist
+        // OTHER (email changes, etc.): use permissive private whitelist
+        Set<String> allowedDomains = flowContext == FlowContext.PUBLIC_REGISTRATION
+                ? publicWhitelist
+                : privateWhitelist;
+
         if (allowedDomains.isEmpty()) {
+            String errorMessage = config.getStringOrDefault(CONFIG_ERROR_MESSAGE, MESSAGE_INVALID_DOMAIN);
+            context.addError(new ValidationError(ID, inputHint, errorMessage, ""));
             return;
         }
 
@@ -150,7 +180,11 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
      * @return Set of allowed domains (preserves insertion order)
      */
     private Set<String> parseAllowedDomains(ValidatorConfig config) {
-        String domainsConfig = config.getStringOrDefault(CONFIG_ALLOWED_DOMAINS, "");
+        return parseAllowedDomains(config, CONFIG_ALLOWED_DOMAINS_LEGACY);
+    }
+
+    private Set<String> parseAllowedDomains(ValidatorConfig config, String configKey) {
+        String domainsConfig = config.getStringOrDefault(configKey, "");
 
         if (domainsConfig == null || domainsConfig.isBlank()) {
             return Collections.emptySet();
@@ -171,6 +205,82 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
         }
 
         return domains;
+    }
+
+    private Set<String> mergeWhitelists(Set<String> privateWhitelist, Set<String> publicWhitelist) {
+        if (privateWhitelist.isEmpty()) {
+            return new LinkedHashSet<>(publicWhitelist);
+        }
+        if (publicWhitelist.isEmpty()) {
+            return new LinkedHashSet<>(privateWhitelist);
+        }
+        Set<String> merged = new LinkedHashSet<>(privateWhitelist);
+        merged.addAll(publicWhitelist);
+        return merged;
+    }
+
+    private FlowContext detectFlowContext(ValidationContext context) {
+        if (context == null || context.getSession() == null || context.getSession().getContext() == null) {
+            return FlowContext.OTHER;
+        }
+
+        String path = null;
+        String queryString = null;
+        
+        if (context.getSession().getContext().getUri() != null) {
+            try {
+                path = context.getSession().getContext().getUri().getPath();
+                queryString = context.getSession().getContext().getUri().getRequestUri().getQuery();
+                
+                org.jboss.logging.Logger.getLogger(getClass()).infof(
+                    "Email validation - Path: %s, Query: %s", path, queryString);
+                
+                if (path != null && !path.isBlank()) {
+                    String normalizedPath = path.toLowerCase();
+                    String normalizedQuery = (queryString != null) ? queryString.toLowerCase() : "";
+                    
+                    // PRIORITY 1: Check for TOKEN parameter (invitations)
+                    // Invitations have token= in query string, uses PRIVATE whitelist
+                    if (normalizedQuery.contains("token=")) {
+                        org.jboss.logging.Logger.getLogger(getClass()).info(
+                            "Email validation - Detected INVITATION_REGISTRATION (token present) - using PRIVATE whitelist");
+                        return FlowContext.INVITATION_REGISTRATION;
+                    }
+                    
+                    // PRIORITY 2: PUBLIC REGISTRATION: /login-actions/registration without token
+                    // Uses PUBLIC whitelist (restrictive)
+                    // This includes Account Console and external client registration flows
+                    if (normalizedPath.contains("/login-actions/registration")) {
+                        org.jboss.logging.Logger.getLogger(getClass()).info(
+                            "Email validation - Detected PUBLIC_REGISTRATION (no token) - using PUBLIC whitelist");
+                        return FlowContext.PUBLIC_REGISTRATION;
+                    }
+                    
+                    // PRIORITY 3: Other paths with /protocol/openid-connect/registrations
+                    if (normalizedPath.contains("/protocol/openid-connect/registrations")) {
+                        org.jboss.logging.Logger.getLogger(getClass()).info(
+                            "Email validation - Detected INVITATION_REGISTRATION via /protocol path - using PRIVATE whitelist");
+                        return FlowContext.INVITATION_REGISTRATION;
+                    }
+                    
+                    // EMAIL CHANGES and other account operations
+                    // These are typically in /account paths
+                    // Uses PRIVATE whitelist (permissive)
+                    if (normalizedPath.contains("/account/")) {
+                        org.jboss.logging.Logger.getLogger(getClass()).info(
+                            "Email validation - Detected email change or account operation (PRIVATE)");
+                        return FlowContext.INVITATION_REGISTRATION; // Reuse for other private contexts
+                    }
+                }
+            } catch (Exception e) {
+                org.jboss.logging.Logger.getLogger(getClass()).warnf(
+                    "Email validation - Error detecting context: %s", e.getMessage());
+            }
+        }
+
+        org.jboss.logging.Logger.getLogger(getClass()).info(
+            "Email validation - Defaulting to OTHER context (PRIVATE)");
+        return FlowContext.INVITATION_REGISTRATION; // Default to private (more permissive)
     }
 
     /**

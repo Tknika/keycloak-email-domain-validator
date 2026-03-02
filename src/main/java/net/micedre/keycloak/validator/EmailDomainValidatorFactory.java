@@ -55,9 +55,10 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
      * @return Description of the validator's purpose
      */
     public String getHelpText() {
-        return "Validates that email addresses belong to whitelisted domains. " +
-               "Supports glob patterns: * (any characters), ? (single character). " +
-               "If no domains are configured, validation is skipped (all domains allowed).";
+         return "Validates that email addresses belong to whitelisted domains. " +
+             "Supports glob patterns: * (any characters), ? (single character). " +
+             "Public registrations use the public whitelist; all other contexts use the private whitelist. " +
+             "If a whitelist is empty, no domains are allowed for that context.";
     }
 
     /**
@@ -70,13 +71,26 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
     public List<ProviderConfigProperty> getConfigProperties() {
         return ProviderConfigurationBuilder.create()
                 .property()
-                    .name(EmailDomainValidator.CONFIG_ALLOWED_DOMAINS)
-                    .label("Allowed Domains")
-                    .helpText("List of allowed email domains, separated by newlines or ##. " +
+                    .name(EmailDomainValidator.CONFIG_PRIVATE_WHITELIST)
+                    .label("Private Whitelist (Invitations + Other Contexts)")
+                    .helpText("List of allowed email domains for invitations (/login-actions/registration) " +
+                              "and all non-public contexts. This whitelist always includes the public whitelist. " +
+                              "Separated by newlines or ##. Supports glob patterns: * (any characters), ? (single character). " +
+                              "Examples: mydomain.com, *.mydomain.com, sub?.domain.com. " +
+                              "Leading @ is optional (@mydomain.com = mydomain.com). " +
+                              "Leave empty to allow no domains.")
+                    .type(ProviderConfigProperty.TEXT_TYPE)
+                    .defaultValue("")
+                    .add()
+                .property()
+                    .name(EmailDomainValidator.CONFIG_PUBLIC_WHITELIST)
+                    .label("Public Whitelist (Public Registration)")
+                    .helpText("List of allowed email domains for public registration " +
+                              "(/protocol/openid-connect/registrations). Separated by newlines or ##. " +
                               "Supports glob patterns: * (any characters), ? (single character). " +
                               "Examples: mydomain.com, *.mydomain.com, sub?.domain.com. " +
                               "Leading @ is optional (@mydomain.com = mydomain.com). " +
-                              "Leave empty to allow all domains.")
+                              "Leave empty to allow no domains.")
                     .type(ProviderConfigProperty.TEXT_TYPE)
                     .defaultValue("")
                     .add()
