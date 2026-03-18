@@ -9,6 +9,10 @@ import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.validate.Validator;
 import org.keycloak.validate.ValidatorFactory;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 
 /**
@@ -24,6 +28,11 @@ import java.util.List;
  */
 public class EmailDomainValidatorFactory implements ValidatorFactory, ConfiguredProvider {
 
+    private static final String WHITELIST_FILE_PATH = "/opt/keycloak/data/whitelist.json";
+
+    private String defaultPrivateWhitelist = "";
+    private String defaultPublicWhitelist = "";
+
     @Override
     public String getId() {
         return EmailDomainValidator.ID;
@@ -36,7 +45,41 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
 
     @Override
     public void init(Config.Scope config) {
-        // No initialization needed
+        File file = new File(WHITELIST_FILE_PATH);
+        if (file.exists() && file.isFile()) {
+            try {
+                String raw = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
+                defaultPrivateWhitelist = extractJsonValue(raw, EmailDomainValidator.CONFIG_PRIVATE_WHITELIST);
+                defaultPublicWhitelist = extractJsonValue(raw, EmailDomainValidator.CONFIG_PUBLIC_WHITELIST);
+                org.jboss.logging.Logger.getLogger(getClass()).infof(
+                    "Email whitelist defaults loaded from file: %s", WHITELIST_FILE_PATH);
+            } catch (IOException e) {
+                org.jboss.logging.Logger.getLogger(getClass()).warnf(
+                    "Failed to load whitelist defaults from file %s: %s", WHITELIST_FILE_PATH, e.getMessage());
+            }
+        }
+    }
+
+    private String extractJsonValue(String raw, String key) {
+        String search = "\"" + key + "\"";
+        int keyIdx = raw.indexOf(search);
+        if (keyIdx == -1) return "";
+        int colon = raw.indexOf(':', keyIdx + search.length());
+        if (colon == -1) return "";
+        int open = raw.indexOf('"', colon + 1);
+        if (open == -1) return "";
+        int close = open + 1;
+        while (close < raw.length()) {
+            char c = raw.charAt(close);
+            if (c == '\\') { close += 2; continue; }
+            if (c == '"') break;
+            close++;
+        }
+        return raw.substring(open + 1, close)
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\\\", "\\")
+                .replace("\\\"", "\"");
     }
 
     @Override
@@ -80,7 +123,7 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                               "Leading @ is optional (@mydomain.com = mydomain.com). " +
                               "Leave empty to allow no domains.")
                     .type(ProviderConfigProperty.TEXT_TYPE)
-                    .defaultValue("")
+                    .defaultValue(defaultPrivateWhitelist)
                     .add()
                 .property()
                     .name(EmailDomainValidator.CONFIG_PUBLIC_WHITELIST)
@@ -92,7 +135,7 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                               "Leading @ is optional (@mydomain.com = mydomain.com). " +
                               "Leave empty to allow no domains.")
                     .type(ProviderConfigProperty.TEXT_TYPE)
-                    .defaultValue("")
+                    .defaultValue(defaultPublicWhitelist)
                     .add()
                 .property()
                     .name(EmailDomainValidator.CONFIG_ERROR_MESSAGE)

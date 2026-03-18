@@ -126,13 +126,15 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
             publicWhitelist = legacyWhitelist;
         }
 
-        // Select whitelist based on context:
-        // PUBLIC_REGISTRATION (new users): use strict public whitelist
-        // INVITATION_REGISTRATION (invitations): use permissive private whitelist
-        // OTHER (email changes, etc.): use permissive private whitelist
-        Set<String> allowedDomains = flowContext == FlowContext.PUBLIC_REGISTRATION
-                ? publicWhitelist
-                : privateWhitelist;
+        // PUBLIC_REGISTRATION: solo public whitelist (restrictivo)
+        // INVITATION / OTHER: private + public combinados (permisivo)
+        Set<String> allowedDomains;
+        if (flowContext == FlowContext.PUBLIC_REGISTRATION) {
+            allowedDomains = publicWhitelist;
+        } else {
+            allowedDomains = new LinkedHashSet<>(privateWhitelist);
+            allowedDomains.addAll(publicWhitelist);
+        }
 
         if (allowedDomains.isEmpty()) {
             String errorMessage = config.getStringOrDefault(CONFIG_ERROR_MESSAGE, MESSAGE_INVALID_DOMAIN);
@@ -142,7 +144,6 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
 
         if (!isEmailDomainAllowed(email, allowedDomains)) {
             String errorMessage = config.getStringOrDefault(CONFIG_ERROR_MESSAGE, MESSAGE_INVALID_DOMAIN);
-            // Pass allowed domains as parameter for potential use in error message
             context.addError(new ValidationError(ID, inputHint, errorMessage, formatDomainsForMessage(allowedDomains)));
         }
     }
@@ -161,7 +162,7 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
             return true;
         }
         if (value instanceof String) {
-            return ((String) value).isBlank();
+            return ((String) value).trim().isEmpty();
         }
         return true;
     }
@@ -184,26 +185,24 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
     }
 
     private Set<String> parseAllowedDomains(ValidatorConfig config, String configKey) {
-        String domainsConfig = config.getStringOrDefault(configKey, "");
+        return parseDomainsFromString(config.getStringOrDefault(configKey, ""));
+    }
 
-        if (domainsConfig == null || domainsConfig.isBlank()) {
+    private Set<String> parseDomainsFromString(String domainsConfig) {
+        if (domainsConfig == null || domainsConfig.trim().isEmpty()) {
             return Collections.emptySet();
         }
 
         Set<String> domains = new LinkedHashSet<>();
-        String[] domainArray = domainsConfig.split(DOMAIN_LIST_SEPARATOR);
-
-        for (String domain : domainArray) {
+        for (String domain : domainsConfig.split(DOMAIN_LIST_SEPARATOR)) {
             String trimmed = domain.trim().toLowerCase();
             if (!trimmed.isEmpty()) {
-                // Remove leading @ if present (user convenience)
                 if (trimmed.startsWith("@")) {
                     trimmed = trimmed.substring(1);
                 }
                 domains.add(trimmed);
             }
         }
-
         return domains;
     }
 
@@ -235,7 +234,7 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
                 org.jboss.logging.Logger.getLogger(getClass()).infof(
                     "Email validation - Path: %s, Query: %s", path, queryString);
                 
-                if (path != null && !path.isBlank()) {
+                if (path != null && !path.trim().isEmpty()) {
                     String normalizedPath = path.toLowerCase();
                     String normalizedQuery = (queryString != null) ? queryString.toLowerCase() : "";
                     
