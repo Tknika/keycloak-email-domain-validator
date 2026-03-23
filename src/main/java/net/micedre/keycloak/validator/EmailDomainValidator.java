@@ -53,9 +53,6 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
     public static final String CONFIG_PRIVATE_WHITELIST = "private-whitelist";
 
     public static final String CONFIG_PUBLIC_WHITELIST = "public-whitelist";
-
-    public static final String CONFIG_ALLOWED_DOMAINS_LEGACY = "allowed-domains";
-
     /**
      * Configuration property name for custom error message key.
      */
@@ -181,18 +178,6 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
             }
         }
         return domains;
-    }
-
-    private Set<String> mergeWhitelists(Set<String> privateWhitelist, Set<String> publicWhitelist) {
-        if (privateWhitelist.isEmpty()) {
-            return new LinkedHashSet<>(publicWhitelist);
-        }
-        if (publicWhitelist.isEmpty()) {
-            return new LinkedHashSet<>(privateWhitelist);
-        }
-        Set<String> merged = new LinkedHashSet<>(privateWhitelist);
-        merged.addAll(publicWhitelist);
-        return merged;
     }
 
     private FlowContext detectFlowContext(ValidationContext context) {
