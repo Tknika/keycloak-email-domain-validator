@@ -13,12 +13,15 @@ This project has been inspired by the [keycloak-mail-whitelisting](https://githu
 ## Features
 
 - ✅ Validates email domains across all Keycloak contexts
+- ✅ **Dual whitelist**: separate `public-whitelist` and `private-whitelist` for context-aware validation
+- ✅ **Context detection**: public registration uses only the public whitelist; invitations and all other contexts use private + public combined
+- ✅ **Restrictive by default**: an empty whitelist blocks all domains (no permissive fallback)
+- ✅ **File-based defaults**: pre-populate whitelist fields from a JSON file via environment variable at validator creation time
 - ✅ Support for multiple allowed domains
 - ✅ Glob pattern matching with `*` (any characters) and `?` (single character) wildcards
 - ✅ Case-insensitive domain matching
 - ✅ Internationalized error messages (English, Spanish, French, Basque)
 - ✅ Easy configuration through Keycloak's User Profile UI
-- ✅ Permissive mode when no domains are configured
 
 ## Requirements
 
@@ -121,15 +124,10 @@ docker run -p 8080:8080 keycloak-with-domain-validator start-dev
 5. Expand the **Validations** section
 6. Click **Add Validator**
 7. Select **email-domain-whitelist** from the dropdown
-8. Configure the allowed domains:
-
-```
-mydomain.com
-myotherdomain.com
-*.contractor.com
-```
-
+8. Configure the two whitelist fields (see [Configuration Options](#configuration-options) below)
 9. Click **Save**
+
+> **Tip:** if you use file-based defaults (see below), the whitelist fields will be pre-populated from the JSON file when you open the "Add Validator" form.
 
 ### Via JSON Import/Export
 
@@ -145,7 +143,9 @@ You can configure the validator via realm JSON import:
         "validations": {
           "email": {},
           "email-domain-whitelist": {
-            "allowed-domains": "mydomain.com\nmyotherdomain.com\n*.contractor.com"
+            "private-whitelist": "mydomain.com\nmyotherdomain.com",
+            "public-whitelist": "mydomain.com",
+            "error-message": "error-email-domain-not-allowed"
           }
         }
       }
@@ -156,53 +156,96 @@ You can configure the validator via realm JSON import:
 
 ## Configuration Options
 
-### Allowed Domains
+### Public Whitelist (`public-whitelist`)
 
-Configure multiple domains separated by newlines or `##`. Each domain supports:
+Domains allowed for **public self-registration** (`/login-actions/registration` without an invitation token).
+
+- Multiple domains separated by newlines or `##`
+- Supports glob patterns (see below)
+- **Leave empty to block all public registrations**
+
+### Private Whitelist (`private-whitelist`)
+
+Domains allowed for **invitations and all other contexts** (email changes, account console, Admin API, etc.).
+
+At runtime, the effective allowed set for these contexts is `private-whitelist ∪ public-whitelist`.
+
+- Multiple domains separated by newlines or `##`
+- Supports glob patterns (see below)
+- **Leave empty to allow only the domains in the public whitelist for these contexts**
+
+### Domain Pattern Syntax
+
+Domains in both whitelists support:
 
 - **Exact match**: `mydomain.com`
 - **Subdomain wildcard**: `*.mydomain.com` (matches `sub.mydomain.com` but not `mydomain.com`)
-- **Single character wildcard**: `my?domain.com` (matches `mydomain.com`, `my1domain.com`, etc.)
+- **Single character wildcard**: `my?domain.com` (matches `my1domain.com`, etc.)
 - **Combined patterns**: `*.sub?.mydomain.com`
 
 **Notes:**
 - Leading `@` is optional (`@mydomain.com` = `mydomain.com`)
 - Domain matching is case-insensitive
-- Leave empty to allow all domains (permissive mode)
+- An **empty whitelist is restrictive** — it blocks all emails for that context (no permissive fallback)
 
-### Error Message
+### Error Message (`error-message`)
 
 Customize the error message key (optional):
 - Default: `error-email-domain-not-allowed`
 - The key must be defined in your theme's message properties
 - The message can include `{0}` placeholder for the list of allowed domains
 
+### File-Based Defaults (`EMAIL_WHITELIST_FILE`)
+
+Set the `EMAIL_WHITELIST_FILE` environment variable to a JSON file path so that the whitelist fields are **automatically pre-populated** every time the "Add Validator" form is opened in the Admin Console.
+
+```bash
+EMAIL_WHITELIST_FILE=/opt/keycloak/data/whitelist.json
+```
+
+**JSON format:**
+
+```json
+{
+  "private-whitelist": "mydomain.com\nmyotherdomain.com",
+  "public-whitelist": "mydomain.com",
+  "error-message": "error-email-domain-not-allowed"
+}
+```
+
+**Important notes:**
+- The file is read **each time the form opens** — no Keycloak restart required after updating the file, only delete and re-add the validator in the UI.
+- If the file does not exist or cannot be read, fields are pre-populated as empty (still usable).
+- This does **not** override the saved validator configuration — it only sets the default values shown in the form.
+
 ## Examples
 
-### Example 1: Simple Domain List
+### Example 1: Public registration restricted, invitations open
 
+**`public-whitelist`:**
 ```
 company.com
-company.org
-company.net
 ```
 
-**Allowed:**
-- `user@company.com`
-- `admin@company.org`
+**`private-whitelist`:**
+```
+company.com
+partner.com
+*.contractor.com
+```
 
-**Blocked:**
-- `user@gmail.com`
-- `user@company.co.uk`
+- Public registration: only `@company.com` allowed
+- Invitations / email changes: `@company.com`, `@partner.com`, any `@*.contractor.com` allowed
 
 ### Example 2: Wildcard Subdomains
 
+**`public-whitelist`:**
 ```
 *.company.com
 company.com
 ```
 
-**Allowed:**
+**Allowed** (public registration):
 - `user@company.com`
 - `user@dev.company.com`
 - `user@staging.company.com`
@@ -212,12 +255,13 @@ company.com
 
 ### Example 3: Pattern Matching
 
+**`private-whitelist`:**
 ```
 *.dev?.company.com
 prod.company.com
 ```
 
-**Allowed:**
+**Allowed** (invitations):
 - `user@dev1.company.com`
 - `user@deva.company.com`
 - `user@prod.company.com`
@@ -228,15 +272,17 @@ prod.company.com
 
 ## Validation Contexts
 
-This validator applies to ALL contexts where email is validated:
+The validator distinguishes between registration contexts and applies the appropriate whitelist:
 
-| Context | Description |
-|---------|-------------|
-| **Registration** | New user registration form |
-| **UPDATE_EMAIL** | Required action for email update |
-| **Update Profile** | User profile update flow |
-| **Account Console** | Account management console |
-| **Admin API** | REST API user management |
+| Context | Detection | Whitelist Used |
+|---------|-----------|----------------|
+| **Public Registration** | `/login-actions/registration` (no `token=` in query) | `public-whitelist` only |
+| **Invitation Registration** | Any path with `token=` in query string | `private-whitelist` ∪ `public-whitelist` |
+| **OpenID Connect Registration** | `/protocol/openid-connect/registrations` | `private-whitelist` ∪ `public-whitelist` |
+| **Account Console** | Path contains `/account/` | `private-whitelist` ∪ `public-whitelist` |
+| **UPDATE_EMAIL / Admin API / Other** | All other paths | `private-whitelist` ∪ `public-whitelist` |
+
+> **Key rule:** if the effective allowed set for a context is empty, **all domains are blocked** — there is no permissive fallback.
 
 ## Troubleshooting
 
@@ -253,13 +299,34 @@ grep -i "email-domain-whitelist" $KEYCLOAK_HOME/logs/keycloak.log
 ### Validation Not Working
 
 1. Verify the validator is added to the email attribute in User Profile
-2. Check the allowed domains configuration (no typos)
-3. Test with a simple exact match domain first
-4. Enable debug logging:
+2. Check that the whitelist is not empty — **an empty whitelist blocks all domains**
+3. Make sure you are checking the correct whitelist for the context (public vs private)
+4. Check Keycloak logs for the context detection line:
+   ```
+   Email validation - Path: ..., Query: ...
+   ```
+5. Test with a simple exact match domain first
+6. Enable debug logging:
 
 ```bash
 kc.sh start --log-level=org.keycloak.userprofile:debug
 ```
+
+### File-Based Defaults Not Loading
+
+1. Confirm `EMAIL_WHITELIST_FILE` environment variable is set inside the container:
+   ```bash
+   docker exec keycloak printenv | grep EMAIL_WHITELIST
+   ```
+2. Confirm the file exists at the path shown and is valid JSON:
+   ```json
+   {
+     "private-whitelist": "domain1.com\ndomain2.com",
+     "public-whitelist": "domain1.com"
+   }
+   ```
+3. Defaults are loaded every time the "Add Validator" form opens — **delete and re-add** the validator after editing the file; no Keycloak restart is needed.
+4. Search logs for `Email whitelist defaults loaded from file` to confirm the file was read.
 
 ### Error Messages Not Displaying
 
@@ -293,6 +360,22 @@ If you're currently using the FormAction-based validator:
 5. Optionally remove the old JAR
 
 The glob pattern syntax is fully compatible with the existing implementation.
+
+## Migration from `allowed-domains` (single-field) to dual whitelist
+
+Earlier versions of this plugin used a single `allowed-domains` field. The new version replaces it with two fields:
+
+| Old field | New field | Used for |
+|-----------|-----------|---------|
+| `allowed-domains` | `public-whitelist` | Public self-registration |
+| `allowed-domains` | `private-whitelist` | Invitations, email changes, Admin API, etc. |
+
+To migrate:
+1. Note your current `allowed-domains` value
+2. Delete the existing validator from the email attribute
+3. Add `email-domain-whitelist` again
+4. Set both `public-whitelist` and `private-whitelist` as needed
+5. Save
 
 ## Contributing
 

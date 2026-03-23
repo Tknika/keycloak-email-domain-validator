@@ -111,7 +111,8 @@ class EmailDomainValidatorTest {
         void testLeadingAtStripped() {
             // This would be tested through integration tests with actual ValidatorConfig
             // For unit test, we verify the constant exists
-            assertEquals("allowed-domains", EmailDomainValidator.CONFIG_ALLOWED_DOMAINS);
+            assertEquals("private-whitelist", EmailDomainValidator.CONFIG_PRIVATE_WHITELIST);
+            assertEquals("public-whitelist", EmailDomainValidator.CONFIG_PUBLIC_WHITELIST);
         }
     }
 
