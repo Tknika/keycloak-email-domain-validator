@@ -28,10 +28,8 @@ import java.util.List;
  */
 public class EmailDomainValidatorFactory implements ValidatorFactory, ConfiguredProvider {
 
-    private static final String WHITELIST_FILE_PATH = "/opt/keycloak/data/whitelist.json";
-
-    private String defaultPrivateWhitelist = "";
-    private String defaultPublicWhitelist = "";
+    private static final String WHITELIST_FILE_ENV = "EMAIL_WHITELIST_FILE";
+    private static final String WHITELIST_FILE_DEFAULT = System.getProperty("user.dir") + "/data/whitelist.json";
 
     @Override
     public String getId() {
@@ -45,18 +43,33 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
 
     @Override
     public void init(Config.Scope config) {
-        File file = new File(WHITELIST_FILE_PATH);
-        if (file.exists() && file.isFile()) {
-            try {
-                String raw = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
-                defaultPrivateWhitelist = extractJsonValue(raw, EmailDomainValidator.CONFIG_PRIVATE_WHITELIST);
-                defaultPublicWhitelist = extractJsonValue(raw, EmailDomainValidator.CONFIG_PUBLIC_WHITELIST);
-                org.jboss.logging.Logger.getLogger(getClass()).infof(
-                    "Email whitelist defaults loaded from file: %s", WHITELIST_FILE_PATH);
-            } catch (IOException e) {
-                org.jboss.logging.Logger.getLogger(getClass()).warnf(
-                    "Failed to load whitelist defaults from file %s: %s", WHITELIST_FILE_PATH, e.getMessage());
-            }
+        // No-op: whitelist defaults are loaded from file on each config properties request.
+    }
+
+    private WhitelistDefaults loadWhitelistDefaultsFromFile() {
+        String filePath = System.getenv(WHITELIST_FILE_ENV);
+        if (filePath == null || filePath.trim().isEmpty()) {
+            filePath = WHITELIST_FILE_DEFAULT;
+        }
+
+        File file = new File(filePath);
+        if (!file.exists() || !file.isFile()) {
+            org.jboss.logging.Logger.getLogger(getClass()).debugf(
+                "Email whitelist file not found. Using empty defaults: %s", filePath);
+            return new WhitelistDefaults("", "");
+        }
+
+        try {
+            String raw = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
+            String privateWhitelist = extractJsonValue(raw, EmailDomainValidator.CONFIG_PRIVATE_WHITELIST);
+            String publicWhitelist = extractJsonValue(raw, EmailDomainValidator.CONFIG_PUBLIC_WHITELIST);
+            org.jboss.logging.Logger.getLogger(getClass()).infof(
+                "Email whitelist defaults loaded from file: %s", filePath);
+            return new WhitelistDefaults(privateWhitelist, publicWhitelist);
+        } catch (IOException e) {
+            org.jboss.logging.Logger.getLogger(getClass()).warnf(
+                "Failed to load whitelist defaults from file %s: %s", filePath, e.getMessage());
+            return new WhitelistDefaults("", "");
         }
     }
 
@@ -112,6 +125,7 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
      * @return List of configuration properties
      */
     public List<ProviderConfigProperty> getConfigProperties() {
+        WhitelistDefaults defaults = loadWhitelistDefaultsFromFile();
         return ProviderConfigurationBuilder.create()
                 .property()
                     .name(EmailDomainValidator.CONFIG_PRIVATE_WHITELIST)
@@ -123,7 +137,7 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                               "Leading @ is optional (@mydomain.com = mydomain.com). " +
                               "Leave empty to allow no domains.")
                     .type(ProviderConfigProperty.TEXT_TYPE)
-                    .defaultValue(defaultPrivateWhitelist)
+                    .defaultValue(defaults.privateWhitelist)
                     .add()
                 .property()
                     .name(EmailDomainValidator.CONFIG_PUBLIC_WHITELIST)
@@ -135,7 +149,7 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                               "Leading @ is optional (@mydomain.com = mydomain.com). " +
                               "Leave empty to allow no domains.")
                     .type(ProviderConfigProperty.TEXT_TYPE)
-                    .defaultValue(defaultPublicWhitelist)
+                    .defaultValue(defaults.publicWhitelist)
                     .add()
                 .property()
                     .name(EmailDomainValidator.CONFIG_ERROR_MESSAGE)
@@ -147,5 +161,15 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                     .defaultValue(EmailDomainValidator.MESSAGE_INVALID_DOMAIN)
                     .add()
                 .build();
+    }
+
+    private static final class WhitelistDefaults {
+        private final String privateWhitelist;
+        private final String publicWhitelist;
+
+        private WhitelistDefaults(String privateWhitelist, String publicWhitelist) {
+            this.privateWhitelist = privateWhitelist != null ? privateWhitelist : "";
+            this.publicWhitelist = publicWhitelist != null ? publicWhitelist : "";
+        }
     }
 }

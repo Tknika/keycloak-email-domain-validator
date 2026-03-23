@@ -120,14 +120,8 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
         Set<String> publicWhitelist = parseAllowedDomains(config, CONFIG_PUBLIC_WHITELIST);
         Set<String> privateWhitelist = parseAllowedDomains(config, CONFIG_PRIVATE_WHITELIST);
 
-        if (privateWhitelist.isEmpty() && publicWhitelist.isEmpty()) {
-            Set<String> legacyWhitelist = parseAllowedDomains(config, CONFIG_ALLOWED_DOMAINS_LEGACY);
-            privateWhitelist = legacyWhitelist;
-            publicWhitelist = legacyWhitelist;
-        }
-
-        // PUBLIC_REGISTRATION: solo public whitelist (restrictivo)
-        // INVITATION / OTHER: private + public combinados (permisivo)
+        // PUBLIC_REGISTRATION: solo public whitelist
+        // INVITATION / OTHER: private + public combinados
         Set<String> allowedDomains;
         if (flowContext == FlowContext.PUBLIC_REGISTRATION) {
             allowedDomains = publicWhitelist;
@@ -165,23 +159,6 @@ public class EmailDomainValidator extends AbstractSimpleValidator {
             return ((String) value).trim().isEmpty();
         }
         return true;
-    }
-
-    /**
-     * Parses the allowed domains from the validator configuration.
-     * 
-     * <p>Domains can be separated by newlines or ##. Each domain is:</p>
-     * <ul>
-     *   <li>Trimmed of whitespace</li>
-     *   <li>Converted to lowercase</li>
-     *   <li>Stripped of leading @ if present</li>
-     * </ul>
-     * 
-     * @param config The validator configuration
-     * @return Set of allowed domains (preserves insertion order)
-     */
-    private Set<String> parseAllowedDomains(ValidatorConfig config) {
-        return parseAllowedDomains(config, CONFIG_ALLOWED_DOMAINS_LEGACY);
     }
 
     private Set<String> parseAllowedDomains(ValidatorConfig config, String configKey) {
