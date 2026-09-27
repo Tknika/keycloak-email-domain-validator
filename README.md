@@ -169,6 +169,69 @@ Configure multiple domains separated by newlines or `##`. Each domain supports:
 - Leading `@` is optional (`@mydomain.com` = `mydomain.com`)
 - Domain matching is case-insensitive
 - Leave empty to allow all domains (permissive mode)
+- `#` starts a line comment (useful in the file below)
+- Ignored when **Domains File** is set
+
+### Domains File
+
+Instead of maintaining the domain list in the Admin Console textarea (which requires
+removing and re-adding the validator to append a domain), point the validator at an
+external file. Adding a domain then becomes a one-line file edit — no Admin Console
+changes, no rebuild.
+
+Set **Domains File** to a path readable by the Keycloak container, e.g.
+`/opt/keycloak/data/allowed-domains.txt` (bind-mount it from the host). The file is
+re-read at most once every 60 seconds (cached in memory).
+
+File format — one domain per line, `#` starts a line comment:
+
+```
+# Tknika federation — allowed self-registration domains
+fpeuskadi.eus
+tknika.net
+*.tknika.eus
+```
+
+**Behavior:**
+- When set and readable, the file is the **single source of truth** — the *Allowed
+  Domains* textarea is ignored.
+- An empty file means **allow all domains** (permissive, same as an empty textarea).
+- If the path is set but the file is missing/unreadable, the validator **falls back**
+  to the *Allowed Domains* textarea (so a missing file never causes a lockout).
+
+Example with Docker (bind-mount the file from the host):
+
+```yaml
+services:
+  keycloak:
+    volumes:
+      - /srv/keycloak/allowed-domains.txt:/opt/keycloak/data/allowed-domains.txt:ro
+```
+
+Then add a domain on the host with no restart:
+
+```bash
+echo 'newdomain.com' >> /srv/keycloak/allowed-domains.txt
+```
+
+### Organization Invitation Bypass
+
+When **Bypass on Organization Invitation** is enabled (default), the whitelist is
+skipped if the email being validated has a **pending (non-expired) organization
+invitation** in the in-context organization. This lets administrators invite users
+on **any** domain to join an organization, while plain self-registration (no
+invitation) is still restricted to the whitelist.
+
+This targets the Keycloak **Organizations** feature: when a user registers by
+accepting an org invitation, Keycloak sets the organization into the session
+context *before* the user-profile validators run, and forces the registered email
+to match the invitation. The validator detects that situation via the public
+`OrganizationProvider` / `InvitationManager` SPIs and bypasses the whitelist.
+
+- Applies only to registrations with a real, un-expired invitation for that exact
+  email — plain self-registration, `UPDATE_EMAIL`, account console, and admin API
+  still enforce the whitelist.
+- Disable the flag to enforce the whitelist everywhere (even invitations).
 
 ### Error Message
 

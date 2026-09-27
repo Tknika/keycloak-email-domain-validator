@@ -76,8 +76,20 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                               "Supports glob patterns: * (any characters), ? (single character). " +
                               "Examples: mydomain.com, *.mydomain.com, sub?.domain.com. " +
                               "Leading @ is optional (@mydomain.com = mydomain.com). " +
-                              "Leave empty to allow all domains.")
+                              "Leave empty to allow all domains. Ignored when 'Domains File' is set.")
                     .type(ProviderConfigProperty.TEXT_TYPE)
+                    .defaultValue("")
+                    .add()
+                .property()
+                    .name(EmailDomainValidator.CONFIG_DOMAINS_FILE)
+                    .label("Domains File")
+                    .helpText("Optional path to a file with one allowed domain per line " +
+                              "(# starts a line comment). When set and readable, the file is the " +
+                              "single source of truth and the 'Allowed Domains' textarea is ignored, " +
+                              "so adding a domain is a one-line file edit (no Admin Console changes). " +
+                              "Cached for 60s. If the file is missing or unreadable, falls back to " +
+                              "'Allowed Domains'.")
+                    .type(ProviderConfigProperty.STRING_TYPE)
                     .defaultValue("")
                     .add()
                 .property()
@@ -88,6 +100,15 @@ public class EmailDomainValidatorFactory implements ValidatorFactory, Configured
                               "Default: error-email-domain-not-allowed")
                     .type(ProviderConfigProperty.STRING_TYPE)
                     .defaultValue(EmailDomainValidator.MESSAGE_INVALID_DOMAIN)
+                    .add()
+                .property()
+                    .name(EmailDomainValidator.CONFIG_BYPASS_ORG_INVITATION)
+                    .label("Bypass on Organization Invitation")
+                    .helpText("When enabled (default), the whitelist is skipped if the email has a " +
+                              "pending organization invitation, so invitations to non-whitelisted " +
+                              "domains can register. Disable to enforce the whitelist everywhere.")
+                    .type(ProviderConfigProperty.BOOLEAN_TYPE)
+                    .defaultValue(EmailDomainValidator.DEFAULT_BYPASS_ORG_INVITATION)
                     .add()
                 .build();
     }
